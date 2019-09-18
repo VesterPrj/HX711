@@ -1,8 +1,6 @@
 #include <Wire.h>
 #include "HX711.h"
-
 #include <SPI.h>
-
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
@@ -12,8 +10,6 @@
 // Создаем объект дисплея 
 #define OLED_RESET     4 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
-
 
 int Button_1 = 22;  //Кнопка увеличения коэффициента калибровки
 int Button_2 = 23;  //Кнопка уменьшения коэффициента калибровки
@@ -27,24 +23,26 @@ const int LOADCELL_SCK_PIN = A1;
 // Создаем Объект модуля АЦП
 HX711 scale;
 
-float calibration_factor =111.9  ; // коэффициент калибровки
+float calibration_factor =3178.0  ; // коэффициент калибровки
+float cal_y1 = 500.0; // calibrated mass to be added
+long cal_x1 = 0L;
+long cal_x0 = 0L;
+
 float units;  //Код АЦП
-float ounces;  // Вес в унциях
 float gramm;  // Вес в граммах
-float gramm_max=0;  // Вес в граммах
-float gramm_min=1000;  // Вес в граммах
+float gramm_max=0;  // определение разброса
+float gramm_min=1000;  // определение разброса
 
 
 void setup() {
-  Serial.begin(9600);  //   запускаем последновательный порт на скорости 9600
-
-
-  
   // Запускаем дисплей
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // по адрессу 0x3С 
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) // по адрессу 0x3С 
+  { 
     Serial.println(F("SSD1306 allocation failed")); //выводим сообщение если не получилось
     for(;;);
   }
+
+ 
   // Очищаем дисплей
   display.clearDisplay();   
   display.setTextColor(WHITE); 
@@ -63,16 +61,14 @@ void setup() {
   //Запускаем АЦП
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
   scale.set_scale();
-  delay(5000);
-  scale.tare();                              //Сбрасываем на 0
-   scale.set_scale(calibration_factor);       //Применяем калибровку
-
+  
+ //scale.set_scale(calibration_factor);       //Применяем калибровку
    pinMode(Button_1, INPUT);
    pinMode(Button_2, INPUT);
    pinMode(Button_3, INPUT);
    pinMode(Button_4, INPUT);
 
-
+    delay(5000);
 }
 
 void loop() {
@@ -84,10 +80,9 @@ void loop() {
   //for(int i = 0;i < 10; i ++) units =+ scale.get_units(), 10;   // усредняем показания считав 10 раз 
   //units / 10;                                                   // делим на 10
 
-units = scale.get_units();
+units = scale.get_units(10);
 
-   ounces=units;
-  gramm = ounces * 0.035274;                                    // переводим унции в граммы              
+  gramm = units;                                    // переводим унции в граммы              
   Serial.print(gramm);                                          // отправляем в монитор порта
   Serial.print(" grams");  
   Serial.println(); 
@@ -101,7 +96,9 @@ if (gramm_max<gramm)gramm_max=gramm;
 
  //Увеличиваем коэффициент калибровки
 if(digitalRead(Button_1) == LOW) {
- display.print("1: On"); calibration_factor+=0.1;
+ display.print("1: On"); 
+ gramm_max=0;
+ gramm_min=1000;
  } else {
  display.print("1: Off");
  }
@@ -110,7 +107,9 @@ if(digitalRead(Button_1) == LOW) {
 
  //Уменьшаем коэффициент калибровки
 if(digitalRead(Button_2) == LOW) {
- display.print("2: On"); calibration_factor-=0.1;
+ display.print("2: On"); 
+calibration_factor=gramm/500.0f;
+ scale.set_scale(calibration_factor);       //Применяем калибровку
  
  } else {
  display.print("2: Off");
@@ -120,10 +119,10 @@ if(digitalRead(Button_2) == LOW) {
 
  //Применяем калибровочный коэффициент
 if(digitalRead(Button_3) == LOW) {
- display.print("3: On");    scale.set_scale(calibration_factor);       //Применяем калибровку
+ display.print("3: On"); 
+ scale.set_scale(); // Сбрасываем калибровку
  gramm_max=0;
- gramm_min=1000;
- } else {
+ gramm_min=1000; } else {
  display.print("3: Off");
  }
   display.setCursor(64,8);
@@ -132,7 +131,7 @@ if(digitalRead(Button_3) == LOW) {
 if(digitalRead(Button_4) == LOW) {
  display.print("4: On"); 
    scale.tare();                              //Сбрасываем на 0
-   scale.set_scale(calibration_factor);       //Применяем калибровку
+ //  scale.set_scale(calibration_factor);       //Применяем калибровку
  gramm_max=0;
  gramm_min=1000;
  } else {
@@ -158,6 +157,4 @@ if(digitalRead(Button_4) == LOW) {
 
 
   display.display();
-
-
 }
